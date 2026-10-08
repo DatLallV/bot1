@@ -1,0 +1,19 @@
+# Windows 缩略图缓存
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Office 临时文件
+~$*.docx
+~$*.doc
+~$*.xlsx
+
+# 压缩包与备份
+*.zip
+*.rar
+*.7z
+*.bak
+
+# 简历等含个人信息、不上传的文件
+*简历*
+*resume*

@@ -1,2 +1,21 @@
-# Auto detect text files and perform LF normalization
-* text=auto
+# 统一按文本处理，避免 Windows/Linux 换行符差异导致的 diff 噪声
+* text=auto eol=lf
+
+# 源码
+*.cpp  text eol=lf
+*.h    text eol=lf
+*.hpp  text eol=lf
+*.py   text eol=lf
+*.msg  text eol=lf
+*.srv  text eol=lf
+*.launch text eol=lf
+*.xml  text eol=lf
+*.md   text eol=lf
+
+# 二进制
+*.jpg  binary
+*.jpeg binary
+*.png  binary
+*.docx binary
+*.pdf  binary
+*.so   binary
