@@ -1,100 +1,89 @@
-# 桌面级机械臂颜色分拣系统（ROS + OpenCV + Dobot Magician）
+# 桌面级机械臂颜色分拣系统
 
-> 浙江工业大学 · 信息工程学院 · 自动化 · 机器人控制课程设计
-> 作者：高宇辰（302023510072）　指导老师：禹鑫燚
-> 完成时间：2026 年 6–7 月
+浙江工业大学 信息工程学院 自动化　机器人控制课程设计
+高宇辰（302023510072）　指导老师：禹鑫燚
+2026 年 6 月 – 7 月
 
-基于 ROS 构建一套视觉引导的机械臂分拣系统，实现 USB 相机采集 → HSV 颜色识别 → 相机内外参标定 → ArUco 位姿估计 → 机械臂 PTP 运动抓取搬运的完整流程。
-
----
+用 ROS 做的一套视觉引导机械臂分拣系统：USB 相机采图，OpenCV 识别六种颜色的物块，算出物块位置后控制 Dobot Magician 去抓取，按颜色分开放。
 
 ## 运行效果
 
-**RViz 中的坐标系关系与机械臂位姿可视化**
-![RViz TF](docs/images/01-rviz-tf.jpg)
+RViz 里的坐标轴和机械臂位姿：
 
-**六色物块实时识别（左）与 HSV 二值化掩膜（右）**
-![Color Detection](docs/images/02-color-detect.jpg)
+![RViz](docs/images/01-rviz-tf.jpg)
 
-**DobotServer 串口连接与运动指令执行日志**
-![Dobot Connect](docs/images/03-dobot-connect.jpg)
+左边是识别结果，右边是绿色通道的二值化掩膜：
 
----
+![识别效果](docs/images/02-color-detect.jpg)
 
-## 开发环境
+DobotServer 连上机械臂之后的运动指令日志：
 
-| 项目 | 配置 |
-|---|---|
-| 操作系统 | Ubuntu 18.04 LTS（VMware Workstation 虚拟机） |
-| ROS 版本 | **ROS Melodic**（`rosversion -d` → melodic 1.14.x） |
-| 图像处理 | OpenCV 4 |
-| 相机 | Logitech C270i USB 单目相机 |
-| 机械臂 | Dobot Magician（气动吸盘末端执行器） |
-| 标定板 | 8×6 内部角点棋盘格，方格边长 0.024 m |
-| ArUco 码 | `DICT_5X5_100` 字典，标记边长 0.10 m |
-| 构建工具 | catkin_make / CMake（C++11） |
+![Dobot 连接](docs/images/03-dobot-connect.jpg)
 
-> **版本说明**：本项目实际运行在 **ROS Melodic + Ubuntu 18.04** 上（见 `docs/images/03-dobot-connect.jpg` 终端截图与 `src/axif_tf/CMakeLists.txt` 中的 `tf2_ros` 依赖）。
-> 课程实验报告中填写的 "Ubuntu 20.04 + ROS Noetic" 为笔误，实际环境以本 README 为准。
+## 环境
 
----
+- Ubuntu 18.04 LTS，跑在 VMware Workstation 虚拟机里
+- ROS Melodic（`rosversion -d` 显示 melodic 1.14.x）
+- OpenCV 4
+- 相机：Logitech C270i
+- 机械臂：Dobot Magician，末端装气动吸盘
+- 标定板：8×6 内部角点，方格边长 0.024 m
+- ArUco：DICT_5X5_100，标记边长 0.10 m
 
-## 仓库内容
+关于 ROS 版本：实验报告里写的是 Ubuntu 20.04 + ROS Noetic，那是笔误。实际用的是 18.04 + Melodic，终端截图和 `src/axif_tf/CMakeLists.txt` 里的 `tf2_ros` 依赖都能对上。
+
+## 目录
 
 ```
 src/
-├── opencvtest/          六色物块识别节点（自行开发）
-│   ├── src/sorting.cpp          394 行，颜色识别核心
-│   └── msg/pixel_point0.msg     自定义消息：6 色 × (u,v) 坐标数组
-├── axif_tf/             ArUco Marker 检测与相机位姿估计（自行开发）
-│   └── src/getmarker.cpp        105 行
-└── dobot/               Dobot 机械臂 ROS 接口
-    └── src/DobotClient_PTP.cpp  PTP 运动控制客户端
+├── opencvtest/            颜色识别节点
+│   ├── src/sorting.cpp        394 行
+│   └── msg/pixel_point0.msg   自定义消息，存六种颜色的 u/v 坐标
+├── axif_tf/               ArUco 检测
+│   └── src/getmarker.cpp      105 行
+└── dobot/                 Dobot 控制
+    └── src/DobotClient_PTP.cpp
 
 docs/
-├── 机器人控制课程设计实验报告.docx   完整实验报告（含标定截图、10 项调试记录）
-└── images/                          运行截图 3 张
+├── 机器人控制课程设计实验报告.docx
+└── images/
 ```
 
-**编译产物**（已通过 `catkin_make` 构建成功）：
-`devel/lib/opencvtest/sorting` · `devel/lib/axif_tf/getmarker` · `devel/lib/dobot/DobotClient_PTP` · `devel/lib/dobot/DobotServer` · `devel/lib/usb_cam/usb_cam_node`
+catkin_make 编出来五个可执行文件：`sorting`、`getmarker`、`DobotClient_PTP`、`DobotServer`、`usb_cam_node`。
 
-### 关于完整性（如实说明）
+### 说明一下完整性
 
-本仓库为工作区**恢复后的产物**。第三方依赖（`usb_cam` 驱动包、Dobot 官方 SDK 与 Qt/ICU 二进制库）未纳入——它们属于厂商代码，且体积达 227 MB。
+这个仓库是从旧工作区里恢复出来的。`usb_cam` 驱动包和 Dobot 官方的 SDK、Qt/ICU 动态库都没放进来——那些是厂商的东西，加起来 227 MB。
 
-**坐标变换与分拣动作序列部分的源码未能恢复。** 本仓库包含的自行开发代码为：
+三个自己写的文件里：
 
-| 文件 | 状态 |
-|---|---|
-| `src/opencvtest/src/sorting.cpp` | ✅ **完整**，六色识别 + HSV 取色工具 + 自定义消息发布 |
-| `src/axif_tf/src/getmarker.cpp` | ⚠️ ArUco 检测与位姿估计**已完成**；**不含 TF 变换广播**（`sendTransform`）部分 |
-| `src/dobot/src/DobotClient_PTP.cpp` | ⚠️ 基于 Dobot 官方例程改造，PTP 参数配置完整；**不含按颜色排序的分拣动作序列** |
+- `sorting.cpp` 是完整的，六色识别、取色工具、消息发布都在
+- `getmarker.cpp` 做到了 ArUco 检测和位姿估计，但**没有写 TF 变换广播那部分**
+- `DobotClient_PTP.cpp` 是在 Dobot 官方例程基础上改的，PTP 参数配好了，但**没有按颜色排序的分拣动作序列**
 
-实验报告（`docs/`）中记录了坐标变换链 `pixel → camera → world → dobot_base` 的原理推导、变换公式与手动测量参数，以及全部 10 项调试问题的排查过程，可作复现参考。
+坐标变换那块（`transform_base` 节点）的源码在恢复的时候没找到，现在只存在于实验报告里，报告里有变换公式和手动测量出来的参数。这部分的设计过程和调试记录在报告第 4 章。
 
----
+## 颜色识别
 
-## 核心实现
+节点名 `color_distinguish`，源码在 `src/opencvtest/src/sorting.cpp`。
 
-### 一、六色物块识别（`src/opencvtest/src/sorting.cpp`，394 行）
+订阅 `/usb_cam/image_raw`，发布 `pixel_center_axis`，消息类型是 `opencvtest::pixel_point0`，里面是六种颜色各自的 u、v 坐标数组。
 
-ROS 节点名 `color_distinguish`，订阅 `/usb_cam/image_raw`，发布自定义话题 `pixel_center_axis`。
+处理流程：
 
-**处理流程：**
 ```
-BGR 图像 → cvtColor 转 HSV → inRange 阈值二值化 → medianBlur(25×25) 中值滤波
-        → findContours 查找外轮廓 → boundingRect 面积筛选(1000~15000 px²)
-        → 计算中心坐标 → 按颜色分类存入消息数组 → 绘制标注
+BGR 图 → cvtColor 转 HSV → inRange 二值化 → medianBlur(25×25)
+       → findContours 找外轮廓 → boundingRect 面积筛选 → 算中心坐标
 ```
 
-**中心坐标计算：**
+中心坐标就用外接矩形的两个角算：
+
 ```cpp
 double center_u = 0.5 * (rect.tl().x + rect.br().x);
 double center_v = 0.5 * (rect.tl().y + rect.br().y);
 ```
 
-**六色 HSV 阈值**（实测调参结果，代码中定义为 `ColorConfig` 结构体）：
+六种颜色的 HSV 阈值，都是在实际光照下调出来的：
 
 | 颜色 | H_min | H_max | S_min | S_max | V_min | V_max |
 |---|---|---|---|---|---|---|
@@ -106,195 +95,156 @@ double center_v = 0.5 * (rect.tl().y + rect.br().y);
 | 蓝色 | 100 | 124 | 43 | 255 | 46 | 255 |
 | 紫色 | 125 | 155 | 43 | 255 | 46 | 255 |
 
-**关键技术点：红色双区间合并**
-
-HSV 色环上红色跨越 0° 边界，单一阈值区间无法覆盖。代码中单独实现 `processRed()`：
+红色要用两段区间。HSV 是个环形，红色正好跨在 0° 上，只取一段会漏掉一半。所以单独写了个 `processRed()`：
 
 ```cpp
-inRange(hsv, Scalar(0,   43, 46), Scalar(10,  255, 255), mask1);   // 区间1
-inRange(hsv, Scalar(156, 43, 46), Scalar(180, 255, 255), mask2);   // 区间2
-bitwise_or(mask1, mask2, mask_combined);                            // 合并
+inRange(hsv, Scalar(0,   43, 46), Scalar(10,  255, 255), mask1);
+inRange(hsv, Scalar(156, 43, 46), Scalar(180, 255, 255), mask2);
+bitwise_or(mask1, mask2, mask_combined);
 medianBlur(mask_combined, mask_combined, 25);
 ```
 
-**HSV 取色工具**：为便于现场调参，在识别窗口实现了鼠标回调——点击画面任意位置即打印该点 BGR 与 HSV 值并在图像上标注。这是解决"HSV 阈值与实际光照不匹配导致识别数为 0"问题的实用手段。
+另外在识别窗口上加了个鼠标回调：点画面上任意一点，终端就打印那点的 BGR 和 HSV 值。因为 HSV 阈值跟光照关系太大，换个位置就得重新取色。这个工具是当时为了调阈值临时加的，后来一直在用。
 
-**自定义消息 `pixel_point0.msg`：**
+自定义消息很简单，就是十二个数组：
+
 ```
 string name
-float64[] red_u, red_v
-float64[] orange_u, orange_v
-float64[] yellow_u, yellow_v
-float64[] green_u, green_v
-float64[] blue_u, blue_v
-float64[] purple_u, purple_v
+float64[] red_u
+float64[] red_v
+float64[] orange_u
+float64[] orange_v
+float64[] yellow_u
+float64[] yellow_v
+float64[] green_u
+float64[] green_v
+float64[] blue_u
+float64[] blue_v
+float64[] purple_u
+float64[] purple_v
 ```
 
----
+## ArUco 检测和相机标定
 
-### 二、ArUco 检测与相机位姿估计（`src/axif_tf/src/getmarker.cpp`）
-
-ROS 节点名 `axif_tf`，订阅 `/usb_cam/image_raw`。
+节点是 `axif_tf`，源码 `src/axif_tf/src/getmarker.cpp`。
 
 ```cpp
 dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_5X5_100);
 cv::aruco::detectMarkers(marker_image, dictionary, corners, ids);
 cv::aruco::estimatePoseSingleMarkers(corners, 0.10, camera_matrix, dist_coeffs, rvecs, tvecs);
 cv::aruco::drawAxis(marker_image, camera_matrix, dist_coeffs, rvecs, tvecs, 0.1);
-Zc = tvecs[0][2];   // 提取深度，供像素坐标→相机坐标换算使用
+Zc = tvecs[0][2];
 ```
 
-原理：检测 ArUco 标记的四个角点，用 **PnP（Perspective-n-Point）算法**求解相机相对标记的位姿，得到旋转向量 `rvec` 与平移向量 `tvec`；`rvec` 经 **Rodrigues 变换**可转为 3×3 旋转矩阵。`tvec` 的 Z 分量即物块所在平面的深度 `Zc`。
+先检测标记的四个角点，再用 PnP 算出相机相对标记的位姿，得到旋转向量 `rvec` 和平移向量 `tvec`。`rvec` 用 Rodrigues 变换能转成 3×3 旋转矩阵。`tvec` 的 Z 分量就是深度 `Zc`，后面把像素坐标换算成相机坐标要用到。
 
-**相机内参标定结果**（张正友棋盘格法实测，硬编码于源码）：
+相机内参是用张正友棋盘格法标出来的，结果直接写在源码里：
 
 ```cpp
-// 内参矩阵 K
 camera_matrix = [ 833.5051,   0,       330.5683;
                   0,          833.8074, 255.7232;
                   0,          0,        1       ]
 
-// 畸变系数 [k1, k2, p1, p2, k3]
 dist_coeffs = [0.04509, 0.22342, 0.004863, 0.004637, 0]
 ```
 
 标定命令：
+
 ```bash
 rosrun camera_calibration cameracalibrator.py \
     --size 8x6 --square 0.024 \
     image:=/usb_cam/image_raw camera:=/usb_cam
 ```
 
-**像素坐标 → 相机坐标**（需已知深度 `Zc`）：
+拿到深度之后，像素坐标转相机坐标：
+
 ```
 Xc = (u - cx) * Zc / fx
 Yc = (v - cy) * Zc / fy
 ```
 
-**相机坐标 → 机械臂基座坐标**：实验报告中通过 TF 树查询实现：
+再往机械臂基座坐标转的一步是在 TF 树上做的，报告里用的是：
+
 ```cpp
 transformPoint("dobot_base", point_in_camera, point_in_base);
-// 自动完成 camera → world → dobot_base 变换链
-// world → dobot_base 平移量为卷尺实测：(-0.143, 0.258, 0.138) 米，旋转按单位矩阵处理
 ```
-> ⚠️ 该变换节点（`transform_base` / `sendDobotTf`）的源码本次未恢复，仅存于实验报告。
 
----
+`world` 到 `dobot_base` 的平移量是拿卷尺量的，`(-0.143, 0.258, 0.138)` 米，旋转当成单位矩阵处理（两个坐标系方向一致）。
 
-### 三、Dobot 机械臂控制（`src/dobot/src/DobotClient_PTP.cpp`）
+前面说过，这个变换节点的代码没能恢复出来。
 
-通过 ROS Service 调用 `DobotServer` 提供的接口：
+## 机械臂控制
 
-| 服务名 | 功能 |
-|---|---|
-| `SetPTPCmd` | PTP 点位运动控制 |
-| `SetEndEffectorParams` | 设置末端执行器偏移参数 |
-| `SetEndEffectorSuctionCup` | 吸盘控制（suck=1 吸取，suck=0 释放） |
-| `SetHOMECmd` | 机械臂回零 |
-| `SetPTPJumpParams` | 设置门型运动抬升高度与 Z 轴限位 |
-| `SetPTPCommonParams` | 设置速度 / 加速度比例 |
+源码 `src/dobot/src/DobotClient_PTP.cpp`，是照 Dobot 官方例程改的。
 
-**实测调参值**（源码中的配置）：
+调用的服务有：
+
+- `SetPTPCmd` 点位运动
+- `SetEndEffectorParams` 设末端偏移
+- `SetEndEffectorSuctionCup` 吸盘吸放
+- `SetHOMECmd` 回零
+- `SetPTPJumpParams` 门型运动抬升高度和 Z 轴限位
+- `SetPTPCommonParams` 速度、加速度比例
+
+参数：
+
 ```cpp
-srv5.request.xBias = 70;              // 吸盘相对末端的 x 向物理偏移 (mm)
-srv.request.velocity = 100;           // 四轴速度
-srv.request.acceleration = 100;       // 四轴加速度
-srv.request.xyzVelocity = 100;        // 笛卡尔速度
-srv.request.jumpHeight = 20;          // 门型运动抬升高度 (mm)
-srv.request.zLimit = 200;             // Z 轴限位 (mm)
-srv.request.velocityRatio = 50;       // 速度比例 (%)
-srv.request.accelerationRatio = 50;   // 加速度比例 (%)
+srv5.request.xBias = 70;              // 吸盘相对末端的 x 向偏移，单位 mm
+srv.request.velocity = 100;
+srv.request.acceleration = 100;
+srv.request.xyzVelocity = 100;
+srv.request.jumpHeight = 20;
+srv.request.zLimit = 200;
+srv.request.velocityRatio = 50;
+srv.request.accelerationRatio = 50;
 ```
 
-> **关于 `xBias` 补偿**：机械臂末端执行器与理论模型存在物理偏移，直接按运动学计算的坐标抓取会产生偏差。通过实测补偿吸盘物理偏移量解决，这是把抓取误差压到 ±1cm 以内的关键动作之一。
+`xBias` 这个参数挺关键。机械臂按运动学算出来的位置去抓，实际会偏，因为吸盘装在末端上有个物理偏移量。把这个值补偿进去之后偏差才下来。
 
----
+顺带一提，报告里写的补偿值是 61，代码里最后用的是 70，中间调过几版。
 
-## 遇到的问题与解决（10 个真实调试记录）
+## 调试过程中遇到的问题
 
-> 以下问题均来自实际调试过程，完整版见 `docs/机器人控制课程设计实验报告.docx` 第 4 章。
+这些是实际卡住过的地方，报告第 4 章写得更细。
 
-### 1. VMware 虚拟机无法识别 USB 摄像头
-- **现象**：`ls /dev/video*` 无输出
-- **原因**：VMware USB 服务未启动 / 设备未手动挂载到虚拟机
-- **解决**：虚拟机菜单 → 可移动设备 → 手动"连接"摄像头；USB 兼容性设为 3.1；重启 VMware USB Arbitration Service
+**摄像头在虚拟机里认不出来。** `ls /dev/video*` 没有任何输出。原因是 VMware 需要手动把 USB 设备挂到虚拟机里，不是插上就自动认。在虚拟机菜单的"可移动设备"里手动连接，再把 USB 兼容性设成 3.1 才行。
 
-### 2. 摄像头无法打开 `/dev/video0`
-- **现象**：`v4l2-ctl -d /dev/video0 --all` 报 `Cannot open device`
-- **原因**：设备权限不足，当前用户不在 `video` 用户组
-- **解决**：临时 `sudo chmod 666 /dev/video0`；永久 `sudo usermod -a -G video $USER`
+**`/dev/video0` 打不开。** `v4l2-ctl -d /dev/video0 --all` 报 `Cannot open device`。当前用户不在 `video` 组里，权限不够。临时用 `sudo chmod 666 /dev/video0`，或者 `sudo usermod -a -G video $USER` 之后重新登录。
 
-### 3. usb_cam 报 `frame mapping timeout`
-- **现象**：`Video4linux: frame mapping timeout (11)`，无法采集图像
-- **原因**：VMware USB 带宽不足；像素格式与硬件不匹配
-- **解决**：USB 控制器升至 3.1；`pixel_format` 由 mjpeg 改 yuyv；降低分辨率；帧率 30 → 10
+**usb_cam 报 `frame mapping timeout (11)`。** 摄像头起不来，一直报帧映射超时。查下来是虚拟机的 USB 带宽不够。把 USB 控制器升到 3.1，`pixel_format` 从 mjpeg 改成 yuyv，分辨率降下来，帧率从 30 降到 10，才稳定。
 
-### 4. MJPG 格式解码失败
-- **现象**：`No JPEG data found in image` / `FFMPEG: error passing frame to decoder context`
-- **原因**：虚拟机 USB 传输不稳定导致 JPEG 数据包损坏
-- **解决**：改用 YUYV 原始格式，由 usb_cam 软件转换而非硬件解码；帧率降至 5–10 fps
-- **经验**：**在虚拟机环境中，选择最稳定的格式比选择最高效的格式更重要**
+**MJPG 解码失败。** 报 `No JPEG data found in image` 和 `FFMPEG: error passing frame to decoder context`。摄像头本身支持 MJPG，但虚拟机里 USB 传输不稳，JPEG 包传坏了。换成 YUYV 原始格式，让 usb_cam 做软件转换，帧率降到 5–10 fps。结论就是虚拟机环境下稳定比高效重要。
 
-### 5. 相机标定时 CALIBRATE 按钮始终灰色
-- **现象**：不断移动标定板仍无法标定
-- **原因**：标定板移动范围未覆盖图像全区域，未满足标定算法的姿态多样性要求
-- **解决**：缓慢移动覆盖四角与中心，使 X / Y / Size / Skew 四个维度均有变化；改善光照避免反光和阴影
+**标定的时候 CALIBRATE 按钮一直是灰的。** 反复移动标定板也点不动。原因是标定板移动的范围不够，没有覆盖画面的四个角和中心，算法要求 X、Y、Size、Skew 四个方向都有变化才行。后来慢慢移动覆盖全画面，同时注意别反光。
 
-### 6. 物块识别结果始终为 0
-- **现象**：`color_distinguish` 节点运行正常但各颜色计数均为 0
-- **原因**：HSV 阈值与实际物块颜色不匹配；面积阈值区间设置不当
-- **解决**：编写 HSV 鼠标取色工具实测物块真实 HSV 值重新标定阈值；面积阈值由 6000~10000 调整为 **1000~15000**
-- **经验**：**HSV 阈值高度依赖环境光照，更换环境必须重新标定**
+**识别结果一直是 0。** 节点跑着没问题，但六种颜色的计数全是 0。HSV 阈值跟实际物块对不上，面积阈值区间也太窄。写了个鼠标取色工具，量出物块真实的 HSV 值重新标定阈值，面积阈值从 6000~10000 改成 1000~15000。这个问题的教训是 HSV 阈值跟光照绑得太死，换个环境必须重新标。
 
-### 7. 编译时找不到 `tf` 包
-- **现象**：`Could not find a package configuration file provided by "tf"`
-- **原因**：新版 ROS 中 `tf` 已被 `tf2_ros` 和 `tf2_geometry_msgs` 取代
-- **解决**：`CMakeLists.txt` 中依赖改为 `tf2_ros` / `tf2_geometry_msgs`，头文件引用同步修改
-- **经验**：**不同 ROS 版本 API 存在差异，需关注版本兼容性**
+**编译找不到 `tf` 包。** 报 `Could not find a package configuration file provided by "tf"`。新版 ROS 里 `tf` 已经被 `tf2_ros` 和 `tf2_geometry_msgs` 替代了。改 CMakeLists 里的依赖，头文件引用也一起改。
 
-### 8. OpenCV 版本不兼容
-- **现象**：`Could not find a configuration file for package "OpenCV" compatible with requested version "3"`
-- **原因**：系统安装的是 OpenCV 4，而 `CMakeLists.txt` 指定了版本 3
-- **解决**：`find_package(OpenCV 3 REQUIRED)` → `find_package(OpenCV REQUIRED)`，不指定版本自动适配
+**OpenCV 版本对不上。** 报 `Could not find a configuration file for package "OpenCV" compatible with requested version "3"`。系统装的是 OpenCV 4，但 CMakeLists 里写死了 3。把版本号去掉，`find_package(OpenCV REQUIRED)`，让它自动适配。
 
-### 9. Dobot 机械臂连接失败
-- **现象**：`rosrun dobot DobotServer ttyUSB0` 无法连接
-- **原因**：串口设备权限不足；实际设备号不一定是 `ttyUSB0`
-- **解决**：`ls /dev/ttyUSB*` 确认真实设备号；`sudo chmod 666 /dev/ttyUSB*`；确保机械臂上电
-- **经验**：**串口设备每次重新插拔后都需重设权限**
+**机械臂连不上。** `rosrun dobot DobotServer ttyUSB0` 起不来。两个原因：串口设备权限不够，以及实际设备号不一定是 ttyUSB0。先用 `ls /dev/ttyUSB*` 确认真实设备号，再 `sudo chmod 666` 给权限。串口每次重新插拔后都要重设一次权限。
 
-### 10. 机械臂 PTP 运动偏移过大
-- **现象**：实际到达位置与预期偏差超过 1cm
-- **原因**：末端执行器偏移参数未设置；坐标变换参数不准；机械臂未回零
-- **解决**：
-  1. 设置吸盘末端偏移 `xBias`（源码中为 70 mm），补偿物理偏移
-  2. 在坐标变换中对实测偏差做补偿修正
-  3. PTP 运动前先执行 `SetHOMECmd` 回零
-- **经验**：**末端执行器与理论模型存在物理偏移，必须在软件中补偿**
+**抓取位置偏移。** 实际到位的位置跟预期差 1 cm 以上。末端吸盘有物理偏移没补偿，加上机械臂没回零。在 `SetEndEffectorParams` 里设 `xBias` 补偿，PTP 运动前先执行 `SetHOMECmd` 回零，偏差才降下来。
 
----
+## 学到的东西
 
-## 项目收获
+ROS 这套东西是第一次完整用起来。整个系统跑起来有七个以上的节点，话题和服务两种通信方式都用到了，rviz、rqt_graph、rostopic 这些工具也是在这个过程中熟悉起来的。节点之间松耦合的设计确实方便，改一个节点不用动其他节点。
 
-1. **ROS 系统理解**：实际搭建包含 7 个以上节点的系统，理解话题 / 服务的分布式通信机制、模块化开发与松耦合设计，掌握 rviz 可视化、rqt_graph 节点关系查看、rostopic 调试等工具链。
-2. **视觉处理能力**：掌握 HSV 颜色空间、中值滤波、轮廓检测、张正友标定、ArUco 位姿估计的**原理与实际调参方法**，认识到视觉算法效果高度依赖环境光照条件。
-3. **工程实践能力**：涵盖硬件调试（USB 挂载 / 串口权限 / 虚拟机配置）、软件编译（CMake 依赖管理 / catkin 构建）、算法调参（HSV 阈值 / 面积阈值 / 末端偏移补偿）、系统集成（多节点启动顺序与联调）。
-4. **问题定位方法**：学会通过分析日志、查阅文档、逐层排除来定位问题——例如摄像头采集失败，依次排查 USB 挂载、用户组权限、USB 带宽、像素格式四个方向才最终定位。
+视觉这块，HSV 颜色空间、中值滤波、轮廓检测、张正友标定、ArUco 位姿估计都亲手做了一遍，比只看书理解得深。最大的体会是视觉算法的效果跟环境关系极大，同一套参数换个光照就完全不准。
 
----
+工程上最费时间的其实是环境问题——USB 挂载、串口权限、虚拟机配置、CMake 依赖，这些跟算法没关系但能卡一整天。后来养成了先看日志再动手的习惯。比如摄像头采集失败那一次，是依次排查了 USB 挂载、用户组权限、USB 带宽、像素格式四个方向才定位到的。
 
-## 后续改进方向
+## 后续可以做的
 
-- 用深度学习模型替代 HSV 阈值法，提升不同光照条件下的识别鲁棒性
-- 补全 TF 变换节点，将坐标变换链完整纳入版本管理
-- 增加避障算法，优化机械臂运动规划
-- 增加异常检测与自动恢复机制
-- 迁移至 ROS2
-
----
+- 把 HSV 阈值法换成深度学习方法，解决光照适应性问题
+- 把 TF 变换节点补全，让坐标变换链完整进版本管理
+- 加避障，优化运动轨迹
+- 加异常检测和自动恢复
+- 迁到 ROS2
 
 ## 参考
 
-- ROS Wiki: [usb_cam](http://wiki.ros.org/usb_cam) · [camera_calibration](http://wiki.ros.org/camera_calibration) · [tf2](http://wiki.ros.org/tf2)
-- OpenCV: ArUco marker detection · Rodrigues transform · PnP
-- Dobot ROS Demo（官方例程）
+- ROS Wiki：[usb_cam](http://wiki.ros.org/usb_cam)、[camera_calibration](http://wiki.ros.org/camera_calibration)、[tf2](http://wiki.ros.org/tf2)
+- OpenCV 的 ArUco 检测、Rodrigues 变换、PnP
+- Dobot 官方 ROS 例程
